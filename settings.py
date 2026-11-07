@@ -8,7 +8,11 @@ TILESIZE = 50
 COLS = WIDTH // TILESIZE # columns of disco floor
 ROWS = HEIGHT // TILESIZE # rows of disco floor
 
-#disco floor
+#player settings
+PLAYER_START_X = WIDTH // 2
+PLAYER_START_Y = HEIGHT // 2
+PLAYER_SPEED = 8
+
 # Disco colors
 colors = [
     (255, 0, 100),    # Pink
