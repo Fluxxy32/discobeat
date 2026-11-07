@@ -9,14 +9,15 @@ class Player(pygame.sprite.Sprite):
     def __init__(self):
         super().__init__()
 
-        self.image = pygame.image.load(
+        self.image = pygame.transform.scale_by(pygame.image.load(
             "/home/daniil/CS1/discobeat/discobeat/assets/0.png"
-        ).convert_alpha()
+        ).convert_alpha(), SCALE_FACTOR)
 
         self.pos = pygame.math.Vector2(PLAYER_START_X, PLAYER_START_Y)
         self.rect = self.image.get_rect(center=self.pos)
         self.speed = PLAYER_SPEED
 
+    #movement of the player
     def update(self):
         keys = pygame.key.get_pressed()
 
@@ -28,6 +29,21 @@ class Player(pygame.sprite.Sprite):
             self.rect.x -= self.speed
         if keys[pygame.K_d]:
             self.rect.x += self.speed
+
+        #keeps the player within the vertical screen boundaries
+        if self.rect.top < 0:
+            self.rect.top = 0
+
+        if self.rect.bottom > HEIGHT:
+            self.rect.bottom = HEIGHT
+
+        #keeps the player within the horizontal screen boundaries
+        if self.rect.left < 0:
+            self.rect.left = 0
+
+        if self.rect.right > WIDTH:
+            self.rect.right = WIDTH
+
 class Particle:
     def __init__(self, x, y, vx, vy, radius):
         self.x = x

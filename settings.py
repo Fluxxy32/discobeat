@@ -12,6 +12,7 @@ ROWS = HEIGHT // TILESIZE # rows of disco floor
 PLAYER_START_X = WIDTH // 2
 PLAYER_START_Y = HEIGHT // 2
 PLAYER_SPEED = 8
+SCALE_FACTOR = 0.35
 
 # Disco colors
 colors = [
