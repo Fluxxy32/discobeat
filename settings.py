@@ -2,7 +2,11 @@
 WIDTH = 1280	
 HEIGHT = 720
 FPS      = 60
-TILESIZE = 32
+
+# Tile setup
+TILESIZE = 50
+COLS = WIDTH // TILESIZE # columns of disco floor
+ROWS = HEIGHT // TILESIZE # rows of disco floor
 
 #disco floor
 # Disco colors
@@ -14,5 +18,3 @@ colors = [
     (255, 200, 0),    # Yellow
     (255, 50, 0)      # Orange
 ]
-
-
