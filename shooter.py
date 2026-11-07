@@ -28,6 +28,30 @@ class Player(pygame.sprite.Sprite):
             self.rect.x -= self.speed
         if keys[pygame.K_d]:
             self.rect.x += self.speed
+class Particle:
+    def __init__(self, x, y, vx, vy, radius):
+        self.x = x
+        self.y = y
+        self.vx = vx
+        self.vy = vy
+        self.radius = radius
+
+    def update(self):
+        # Move the particle based on velocity
+        self.x += self.vx
+        self.y += self.vy
+        
+        # Shrink over time (matching the 0.1 decay from the video)
+        self.radius -= 0.1
+
+    def draw(self, screen):
+        # Pygame requires integer coordinates and radii for drawing circles
+        pygame.draw.circle(
+            screen, 
+            (255, 255, 255), 
+            (int(self.x), int(self.y)), 
+            int(self.radius)
+        )
 
 def disco_floor(screen, tiles, rows, cols, tile_size):
     for row in range(rows):
