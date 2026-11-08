@@ -8,6 +8,13 @@ import random
 pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
+MENU = "menu"
+PLAYING = "playing"
+DEAD = "dead"
+WON = "won"
+
+game_state = MENU
+
 all_sprites_group = pygame.sprite.Group()
 bullet_group = pygame.sprite.Group()
 enemy_group = pygame.sprite.Group()
@@ -635,87 +642,194 @@ def main_menu():
 def main():
     global player
 
-    player = Player()
-    spawner = EnemySpawner()
     pygame.mixer.init()
 
-    #Loads music and plays music
-    pygame.mixer.music.load("assets/Mitch Murder - Hollywood Heights (SPOTISAVER).mp3")
-    pygame.mixer.music.set_volume(0.2)
-    pygame.mixer.music.play(1, 0.0)
+    # Create the player and game objects
+    player = Player()
+    spawner = EnemySpawner()
 
-    font = pygame.font.Font("assets/PublicPixel.ttf", 20) 
-    ui = UI(font) 
+    font = pygame.font.Font("assets/PublicPixel.ttf", 20)
+    ui = UI(font)
+
     pulse = ScreenPulse()
     border_pulse = BorderPulse()
 
     pygame.display.set_caption("DISCOBEAT")
     clock = pygame.time.Clock()
 
+    # Load and start music
+    pygame.mixer.music.load(
+        "assets/Mitch Murder - Hollywood Heights (SPOTISAVER).mp3"
+    )
+    pygame.mixer.music.set_volume(0.2)
+    pygame.mixer.music.play()
+
+    # Initialize floor and timers
     tiles = generate_floor(ROWS, COLS)
     change_timer = 0
     floor_timer = 0
 
+    game_state = PLAYING
 
     while True:
-        #quitting the game
+
+        dt = clock.tick(FPS)
+
+        # --------------------------------
+        # 1. EVENT HANDLING
+        # --------------------------------
+
         for event in pygame.event.get():
+
             if event.type == pygame.QUIT:
                 pygame.quit()
                 exit()
 
-        #timer
-        dt = clock.tick(FPS)
-        change_timer += dt
+            if event.type == pygame.KEYDOWN:
 
-        if change_timer >= BEAT_INTERVAL:
-            change_timer -= BEAT_INTERVAL
+                # Restart after death
+                if game_state == DEAD and event.key == pygame.K_r:
 
-        # Calculate dance floor speed based on combo meter
-        floor_interval = get_floor_interval(player.rhythm_meter)
-        update_music_volume(player.rhythm_meter)  # Update music volume based on combo meter
-        floor_timer += dt
-        while floor_timer >= floor_interval:
-            floor_timer -= floor_interval
+                    # Remove all existing sprites
+                    for sprite in list(all_sprites_group):
+                        sprite.kill()
 
-            for row in range(ROWS):
-                for col in range(COLS):
-                    tiles[row][col] = random.choice(colors)
+                    # Clear remaining groups
+                    bullet_group.empty()
+                    enemy_group.empty()
+                    obstacles_group.empty()
 
-        #drawing on the screen
-        screen.fill((10, 10, 10))
-        disco_floor(screen, tiles, ROWS, COLS, TILESIZE)
-        screen.blit(player.image, player.rect)
-        
-        player.update(change_timer, dt)
-        spawner.update(dt)
-        enemy_group.update(dt)
-        ui.update()
-        
-        # Update screen pulse based on combo
-        pulse.update(player.rhythm_meter, dt)
-        # Update border pulse based on combo
-        border_pulse.update(player.rhythm_meter, dt)
+                    # Create a fresh player
+                    player = Player()
 
-        for bullet in bullet_group:
-            bullet.bullet_movement()
-            bullet.bullet_collisions() #Checks for collisions with enemies and walls
+                    # Reset the spawner
+                    spawner.spawn_timer = 0
 
-        pygame.draw.rect(screen, "red", player.hitbox_rect, width=2) #hitbox 1
-        pygame.draw.rect(screen, "yellow", player.rect, width=2) #hitbox 2
-        all_sprites_group.draw(screen)
-        for enemy in enemy_group:
-            enemy.draw_health_bar()
-        # Draw screen pulse over the game world
-        pulse.draw(screen)
-        # Draw border pulse over the game world
-        border_pulse.draw(screen)
+                    # Reset timers
+                    change_timer = 0
+                    floor_timer = 0
 
-        # Draw UI on top of the pulse
-        ui.update()
+                    # Generate a fresh floor
+                    tiles = generate_floor(ROWS, COLS)
+
+                    # Restart the music
+                    pygame.mixer.music.play()
+
+                    game_state = PLAYING
+
+                # Quit after winning
+                elif game_state == WON and event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    exit()
+
+        # --------------------------------
+        # 2. GAMEPLAY
+        # --------------------------------
+
+        if game_state == PLAYING:
+
+            # Update beat timer
+            change_timer += dt
+
+            if change_timer >= BEAT_INTERVAL:
+                change_timer -= BEAT_INTERVAL
+
+            # Update floor animation
+            floor_interval = get_floor_interval(player.rhythm_meter)
+
+            floor_timer += dt
+
+            while floor_timer >= floor_interval:
+                floor_timer -= floor_interval
+
+                for row in range(ROWS):
+                    for col in range(COLS):
+                        tiles[row][col] = random.choice(colors)
+
+            # Update music volume
+            update_music_volume(player.rhythm_meter)
+
+            # Update player and enemies
+            player.update(change_timer, dt)
+            spawner.update(dt)
+            enemy_group.update(dt)
+
+            # Update bullets
+            for bullet in list(bullet_group):
+                bullet.bullet_movement()
+                bullet.bullet_collisions()
+
+            # Update visual effects
+            pulse.update(player.rhythm_meter, dt)
+            border_pulse.update(player.rhythm_meter, dt)
+
+            # Check game-ending conditions
+            if player.health <= 0:
+                game_state = DEAD
+                pygame.mixer.music.stop()
+
+            elif not pygame.mixer.music.get_busy():
+                game_state = WON
+
+        # --------------------------------
+        # 3. DRAWING
+        # --------------------------------
+
+        if game_state == PLAYING:
+
+            screen.fill((10, 10, 10))
+
+            disco_floor(screen, tiles, ROWS, COLS, TILESIZE)
+
+            all_sprites_group.draw(screen)
+
+            # Draw hitboxes (remove these when finished debugging)
+            pygame.draw.rect(screen, "red", player.hitbox_rect, width=2)
+            pygame.draw.rect(screen, "yellow", player.rect, width=2)
+
+            # Draw enemy health bars
+            for enemy in enemy_group:
+                enemy.draw_health_bar()
+
+            # Draw visual effects
+            pulse.draw(screen)
+            border_pulse.draw(screen)
+
+            # Draw UI last so it stays visible
+            ui.update()
+
+        elif game_state == DEAD:
+            draw_death_screen()
+
+        elif game_state == WON:
+            draw_win_screen()
 
         pygame.display.flip()
 
+def draw_death_screen():
+    screen.fill((12, 3, 5))
+
+    title_font = pygame.font.Font("assets/PublicPixel.ttf", 110)
+    prompt_font = pygame.font.Font("assets/PublicPixel.ttf", 40)
+
+    title = title_font.render("WASTED", True, (200, 25, 35))
+    prompt = prompt_font.render("PRESS R TO RESTART", True, (190, 170, 170))
+
+    screen.blit(title, title.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 60)))
+    screen.blit(prompt, prompt.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 45)))
+
+
+def draw_win_screen():
+    screen.fill((5, 4, 15))
+
+    title_font = pygame.font.Font("assets/PublicPixel.ttf", 110)
+    prompt_font = pygame.font.Font("assets/PublicPixel.ttf", 40)
+
+    title = title_font.render("YOU WIN", True, (180, 100, 255))
+    prompt = prompt_font.render("PRESS ESC TO QUIT", True, (190, 180, 210))
+
+    screen.blit(title, title.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 60)))
+    screen.blit(prompt, prompt.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 45)))
 
 if __name__ == "__main__":
     pygame.init()
