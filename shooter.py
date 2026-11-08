@@ -309,8 +309,6 @@ class UI():
         self.display_combo_bar()
         self.display_rank()
 
-
-
 def get_rank_color(rank):
     rank_colors = {
     "SSS": (255, 215, 0),    # Gold
@@ -391,11 +389,21 @@ def is_good_beat(beat_timer): #Checks if the player is shooting on the beat
 
     return distance_to_beat <= GOOD_WINDOW
 
+def update_music_volume(combo):
+    min_volume = 0.2 # Minimum volume when combo is 0
+    max_volume = 1.0 # Maximum volume when combo is 100
+
+    volume = min_volume + (combo / 100) * (max_volume - min_volume)
+
+    pygame.mixer.music.set_volume(volume)
+
 def main():
     pygame.init()
     pygame.mixer.init()
+
     #Loads music and plays music
     pygame.mixer.music.load(r"assets\Mitch Murder - Hollywood Heights (SPOTISAVER).mp3")
+    pygame.mixer.music.set_volume(0.2)
     pygame.mixer.music.play(1, 0.0)
 
     font = pygame.font.Font("assets/PublicPixel.ttf", 20) 
@@ -428,6 +436,7 @@ def main():
 
         # Calculate dance floor speed based on combo meter
         floor_interval = get_floor_interval(player.rhythm_meter)
+        update_music_volume(player.rhythm_meter)  # Update music volume based on combo meter
         floor_timer += dt
         while floor_timer >= floor_interval:
             floor_timer -= floor_interval
