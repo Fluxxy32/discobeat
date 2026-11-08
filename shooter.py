@@ -12,6 +12,7 @@ all_sprites_group = pygame.sprite.Group()
 bullet_group = pygame.sprite.Group()
 enemy_group = pygame.sprite.Group()
 obstacles_group = pygame.sprite.Group()
+particles = []
 
 class Player(pygame.sprite.Sprite):
     def __init__(self):
@@ -160,6 +161,24 @@ class Bullet(pygame.sprite.Sprite):
             enemy = hits[0]  # Affect the first enemy hit
             enemy.health -= self.damage
 
+                # Choose particle color based on rhythm grade
+            if self.grade == "Perfect":
+                  particle_color = (255, 215, 0)  # Gold
+            elif self.grade == "Good":
+                  particle_color = (50, 200, 255)  # Cyan
+            else:
+                  particle_color = (255, 60, 60)  # Red
+
+            # Spawn 20 particles at the enemy's position
+            for i in range(20):
+                particles.append(
+                Particle(
+                enemy.rect.centerx,
+                enemy.rect.centery,
+                particle_color
+              )
+              )
+
             if self.grade == "Perfect": # Checks bullet grade and updates the player's rhythm meter accordingly
                 player.rhythm_meter += 20
             elif self.grade == "Good":
@@ -175,29 +194,42 @@ class Bullet(pygame.sprite.Sprite):
             self.kill()
 
 class Particle:
-    def __init__(self, x, y, vx, vy, radius):
+    def __init__(self, x, y, color):
         self.x = x
         self.y = y
-        self.vx = vx
-        self.vy = vy
-        self.radius = radius
+        # Random direction and speed
+        angle = random.uniform(0, 2 * math.pi)
+        speed = random.uniform(100, 300)
 
-    def update(self):
+        self.vx = math.cos(angle) * speed
+        self.vy = math.sin(angle) * speed
+
+        self.radius = random.randint(4, 8)
+        self.life = 600  # Milliseconds
+        self.color = color
+
+    def update(self, dt):
         # Move the particle based on velocity
-        self.x += self.vx
-        self.y += self.vy
+        seconds = dt / 1000
+        self.x += self.vx * seconds
+        self.y += self.vy * seconds
         
-        # Shrink over time (matching the 0.1 decay from the video)
-        self.radius -= 0.1
+        # Gradually slow down
+        self.vx *= 0.97
+        self.vy *= 0.97
+
+        # Shrink and disappear
+        self.life -= dt
+        self.radius -= 0.08 * (dt / 16.67)
 
     def draw(self, screen):
-        # Pygame requires integer coordinates and radii for drawing circles
-        pygame.draw.circle(
+        if self.life > 0 and self.radius > 0:
+         pygame.draw.circle(
             screen, 
-            (255, 255, 255), 
+            self.color, 
             (int(self.x), int(self.y)), 
-            int(self.radius)
-        )
+            max(1, int(self.radius))
+         )
 
 class Enemy(pygame.sprite.Sprite):
     def __init__(self, position):
@@ -669,9 +701,17 @@ def main():
             bullet.bullet_movement()
             bullet.bullet_collisions() #Checks for collisions with enemies and walls
 
+        for particle in particles[:]:  # Iterate over a copy of the list to avoid issues when removing particles
+            particle.update(dt)
+            if particle.life <= 0 or particle.radius <= 0:
+               particles.remove(particle)
+            
+
         pygame.draw.rect(screen, "red", player.hitbox_rect, width=2) #hitbox 1
         pygame.draw.rect(screen, "yellow", player.rect, width=2) #hitbox 2
         all_sprites_group.draw(screen)
+
+
         for enemy in enemy_group:
             enemy.draw_health_bar()
         # Draw screen pulse over the game world
@@ -681,6 +721,10 @@ def main():
 
         # Draw UI on top of the pulse
         ui.update()
+
+        # Draw particles LAST so they appear above everything
+        for particle in particles:
+            particle.draw(screen)
 
         pygame.display.flip()
 
