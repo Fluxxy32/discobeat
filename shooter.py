@@ -35,6 +35,9 @@ class Player(pygame.sprite.Sprite):
         self.idle_delay = 2000  # 2 seconds of inactivity before combo bar decay
         self.idle_decay_rate = 5  # Lose 5% per second when idle
 
+        self.base_damage = NORMAL_DAMAGE
+        self.max_damage_multiplier = 3.0
+
     #movement of the player
     def update(self, beat_timer, dt):
         self.player_rotation()
@@ -91,16 +94,15 @@ class Player(pygame.sprite.Sprite):
             self.shoot_cooldown = SHOOT_COOLDOWN
 
             if is_perfect_beat(beat_timer):
-                damage = PERFECT_DAMAGE
                 grade = "Perfect"
             elif is_good_beat(beat_timer):
-                damage = GOOD_DAMAGE
                 grade = "Good"
             else:
-                damage = NORMAL_DAMAGE
                 grade = "Bad"
                 self.rhythm_meter -= 10  # Lose 10% for shooting off-beat
 
+            damage_multiplier = 1 + (self.rhythm_meter / self.max_rhythm_meter) * (self.max_damage_multiplier - 1) # Calculate damage multiplier based on rhythm meter
+            damage = self.base_damage * damage_multiplier
             self.rhythm_meter = max(0, min(self.rhythm_meter, self.max_rhythm_meter))  # Clamp the combo bar between 0 and max
     
             spawn_bullet_pos = self.pos + self.gun_barrel_offset.rotate(self.angle)
