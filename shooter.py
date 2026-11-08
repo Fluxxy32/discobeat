@@ -311,6 +311,20 @@ def generate_floor(rows, cols):
     ]
     return tiles
 
+def get_floor_interval(combo):
+    if combo >= 100:
+        return BEAT_INTERVAL
+    elif combo >= 80:
+        return 800
+    elif combo >= 60:
+        return 1200
+    elif combo >= 40:
+        return 1600
+    elif combo >= 20:
+        return 2000
+    else:
+        return 2400
+
 def hitbox_collide(sprite1, sprite2):
     return sprite1.base_zombie_rect.colliderect(sprite2.rect)
 
@@ -351,6 +365,7 @@ def main():
 
     tiles = generate_floor(ROWS, COLS)
     change_timer = 0
+    floor_timer = 0
 
 
     while True:
@@ -364,8 +379,14 @@ def main():
         dt = clock.tick(FPS)
         change_timer += dt
 
-        while change_timer >= BEAT_INTERVAL:
+        if change_timer >= BEAT_INTERVAL:
             change_timer -= BEAT_INTERVAL
+
+        # Calculate dance floor speed based on combo meter
+        floor_interval = get_floor_interval(player.rhythm_meter)
+        floor_timer += dt
+        while floor_timer >= floor_interval:
+            floor_timer -= floor_interval
 
             for row in range(ROWS):
                 for col in range(COLS):
