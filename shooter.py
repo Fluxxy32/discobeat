@@ -4,6 +4,7 @@ from sys import exit
 import math
 from settings import *
 import random
+
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
 all_sprites_group = pygame.sprite.Group()
@@ -433,6 +434,63 @@ class ScreenPulse:
         self.overlay.fill((140, 40, 200, self.alpha))
         screen.blit(self.overlay, (0, 0))
 
+class BorderPulse:
+    def __init__(self):
+        self.phase = 0
+        self.surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+
+    def update(self, combo, dt):
+        combo = max(0, min(combo, 100))
+
+        # Pulse speed increases with combo
+        min_frequency = 0.5
+        max_frequency = 3.0
+
+        frequency = min_frequency + (combo / 100) * (
+            max_frequency - min_frequency
+        )
+
+        self.phase += (2 * math.pi * frequency * dt) / 1000
+
+        # Calculate brightness
+        intensity = (math.sin(self.phase) + 1) / 2
+
+        self.alpha = int(intensity * 200 * (combo / 100))
+
+    def draw(self, screen):
+        self.surface.fill((0, 0, 0, 0))
+
+        # Neon purple border
+        border_color = (180, 40, 255, self.alpha)
+
+        border_thickness = 25
+
+        # Top
+        pygame.draw.rect(
+            self.surface, border_color,
+            (0, 0, WIDTH, border_thickness)
+        )
+
+        # Bottom
+        pygame.draw.rect(
+            self.surface, border_color,
+            (0, HEIGHT - border_thickness, WIDTH, border_thickness)
+        )
+
+        # Left
+        pygame.draw.rect(
+            self.surface, border_color,
+            (0, 0, border_thickness, HEIGHT)
+        )
+
+        # Right
+        pygame.draw.rect(
+            self.surface, border_color,
+            (WIDTH - border_thickness, 0, border_thickness, HEIGHT)
+        )
+
+        screen.blit(self.surface, (0, 0))
+
 def main():
     pygame.init()
     pygame.mixer.init()
@@ -445,6 +503,7 @@ def main():
     font = pygame.font.Font("assets/PublicPixel.ttf", 20) 
     ui = UI(font) 
     pulse = ScreenPulse()
+    border_pulse = BorderPulse()
 
     pygame.display.set_caption("DISCOBEAT")
     clock = pygame.time.Clock()
@@ -490,6 +549,8 @@ def main():
 
         # Update screen pulse based on combo
         pulse.update(player.rhythm_meter, dt)
+        # Update border pulse based on combo
+        border_pulse.update(player.rhythm_meter, dt)
 
         for bullet in bullet_group:
             bullet.bullet_movement()
@@ -500,6 +561,8 @@ def main():
         all_sprites_group.draw(screen)
         # Draw screen pulse over the game world
         pulse.draw(screen)
+        # Draw border pulse over the game world
+        border_pulse.draw(screen)
 
         # Draw UI on top of the pulse
         ui.update()
