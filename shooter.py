@@ -397,6 +397,42 @@ def update_music_volume(combo):
 
     pygame.mixer.music.set_volume(volume)
 
+class ScreenPulse:
+    def __init__(self):
+        self.phase = 0
+        self.alpha = 0
+
+        # Transparent overlay
+        self.overlay = pygame.Surface(
+            (WIDTH, HEIGHT),
+            pygame.SRCALPHA
+        )
+
+    def update(self, combo, dt):
+        # Keep combo between 0 and 100
+        combo = max(0, min(combo, 100))
+
+        # Increase pulse frequency as combo increases
+        min_frequency = 0.5
+        max_frequency = 2.0
+
+        frequency = min_frequency + (combo / 100) * (
+            max_frequency - min_frequency
+        )
+
+        # Update animation phase
+        self.phase += (2 * math.pi * frequency * dt) / 1000
+
+        # Calculate pulse intensity
+        intensity = (math.sin(self.phase) + 1) / 2
+
+        # Stronger pulse at higher combo
+        self.alpha = int(intensity * 100 * (combo / 100))
+
+    def draw(self, screen):
+        self.overlay.fill((140, 40, 200, self.alpha))
+        screen.blit(self.overlay, (0, 0))
+
 def main():
     pygame.init()
     pygame.mixer.init()
@@ -407,10 +443,8 @@ def main():
     pygame.mixer.music.play(1, 0.0)
 
     font = pygame.font.Font("assets/PublicPixel.ttf", 20) 
-    small_font = pygame.font.Font("assets/PublicPixel.ttf", 15)
-    title_font = pygame.font.Font("assets/PublicPixel.ttf", 60)
-    score_font = pygame.font.Font("assets/PublicPixel.ttf", 50)
     ui = UI(font) 
+    pulse = ScreenPulse()
 
     pygame.display.set_caption("DISCOBEAT")
     clock = pygame.time.Clock()
@@ -452,7 +486,10 @@ def main():
 
         player.update(change_timer, dt)
         enemy.update()
-        ui.update()
+        
+
+        # Update screen pulse based on combo
+        pulse.update(player.rhythm_meter, dt)
 
         for bullet in bullet_group:
             bullet.bullet_movement()
@@ -461,6 +498,12 @@ def main():
         pygame.draw.rect(screen, "red", player.hitbox_rect, width=2) #hitbox 1
         pygame.draw.rect(screen, "yellow", player.rect, width=2) #hitbox 2
         all_sprites_group.draw(screen)
+        # Draw screen pulse over the game world
+        pulse.draw(screen)
+
+        # Draw UI on top of the pulse
+        ui.update()
+
         pygame.display.flip()
 
 if __name__ == "__main__":
