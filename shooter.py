@@ -4,15 +4,18 @@ from sys import exit
 import math
 from settings import *
 import random
+import os
 
+os.chdir(os.path.dirname(os.path.abspath(__file__)))
 pygame.init()
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+flags = pygame.SCALED | pygame.FULLSCREEN
+screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
 
 # Background image
 BACKGROUND_PATH = "assets/arabic set/arabic1.png"
 
 # Dance floor position and dimensions (adjust these)
-FLOOR_RECT = pygame.Rect(637, 665, 650, 250)
+#FLOOR_RECT = pygame.Rect(637, 665, 650, 250)
 # --- Wall collisions ---
 # Rects are in ORIGINAL image pixels (544x416): (x, y, width, height)
 IMG_W, IMG_H = 544, 416
@@ -39,6 +42,9 @@ def img_to_screen_rect(r):
         round(BG_LEFT + x * sx), round(y * sy),
         round(w * sx), round(h * sy)
     )
+
+# Carpet in ORIGINAL image pixels, converted with the same stretch as the background
+FLOOR_RECT = img_to_screen_rect((192, 256, 160, 96))
 
 WALL_RECTS = [img_to_screen_rect(r) for r in WALLS_IMG]
 # --- Sizes and spawn areas ---
@@ -91,11 +97,11 @@ class Player(pygame.sprite.Sprite):
         self.rhythm_meter = 0
         self.max_rhythm_meter = 100 # Combo bar
         self.idle_timer = 0
-        self.idle_delay = 2000  # 2 seconds of inactivity before combo bar decay
+        self.idle_delay = 1500  # 2 seconds of inactivity before combo bar decay
         self.idle_decay_rate = 5  # Lose 5% per second when idle
 
         self.base_damage = NORMAL_DAMAGE
-        self.max_damage_multiplier = 3.0
+        self.max_damage_multiplier = 2.0
         self.damage_cooldown = 0
         self.damage_delay = DAMAGE_DELAY
 
@@ -125,65 +131,55 @@ class Player(pygame.sprite.Sprite):
                 elif dy < 0:
                     self.hitbox_rect.top = wall.bottom
 
-        #keeps the player within the vertical screen boundaries
+        # Keep the player inside the screen
         if self.hitbox_rect.top < 0:
             self.hitbox_rect.top = 0
-
         if self.hitbox_rect.bottom > HEIGHT:
             self.hitbox_rect.bottom = HEIGHT
-
-        #keeps the player within the horizontal screen boundaries
         if self.hitbox_rect.left < 0:
             self.hitbox_rect.left = 0
-
         if self.hitbox_rect.right > WIDTH:
             self.hitbox_rect.right = WIDTH
 
-        if pygame.mouse.get_pressed() == (1, 0, 0) or keys[pygame.K_SPACE]:
-            self.shoot = True
-            self.is_shooting(beat_timer)
-        else:
-            self.shoot = False
-
-
-        # Idle decay for rhythm meter
-        if not self.shoot:
-            self.idle_timer += dt
-            if self.idle_timer >= self.idle_delay:
-                decay_amount = (self.idle_decay_rate * dt) / 1000  # Convert to per second
-                self.rhythm_meter -= decay_amount
-                self.rhythm_meter = max(0, min(self.rhythm_meter, self.max_rhythm_meter))  # Ensure it doesn't go below 0
-        else:
-            self.idle_timer = 0  # Reset idle timer when shooting
+        # Idle decay for rhythm meter (idle_timer resets whenever you fire)
+        self.idle_timer += dt
+        if self.idle_timer >= self.idle_delay:
+            self.rhythm_meter -= (self.idle_decay_rate * dt) / 1000
+            self.rhythm_meter = max(0, self.rhythm_meter)
 
         self.pos = pygame.math.Vector2(self.hitbox_rect.center)
 
         self.player_rotation()
         if self.shoot_cooldown > 0:
-            self.shoot_cooldown -= 1
+            self.shoot_cooldown = max(0, self.shoot_cooldown - dt)
         if self.damage_cooldown > 0:
             self.damage_cooldown -= dt
 
-    def is_shooting(self, beat_timer): 
-        if self.shoot_cooldown == 0 and self.shoot:
-            self.shoot_cooldown = SHOOT_COOLDOWN
+    def fire(self, beat_timer):
+        if self.shoot_cooldown > 0:
+            return
 
-            if is_perfect_beat(beat_timer):
-                grade = "Perfect"
-            elif is_good_beat(beat_timer):
-                grade = "Good"
-            else:
-                grade = "Bad"
-                self.rhythm_meter -= 10  # Lose 10% for shooting off-beat
-            
-            damage_multiplier = 1 + (self.rhythm_meter / self.max_rhythm_meter) * (self.max_damage_multiplier - 1) # Calculate damage multiplier based on rhythm meter
-            damage = self.base_damage * damage_multiplier
-            self.rhythm_meter = max(0, min(self.rhythm_meter, self.max_rhythm_meter))  # Clamp the combo bar between 0 and max
-    
-            spawn_bullet_pos = self.pos + self.gun_barrel_offset.rotate(self.angle)
-            self.bullet = Bullet(spawn_bullet_pos[0], spawn_bullet_pos[1], self.angle, damage, grade)
-            bullet_group.add(self.bullet)
-            all_sprites_group.add(self.bullet)
+        if is_perfect_beat(beat_timer):
+            grade = "Perfect"
+            self.shoot_cooldown = SHOOT_COOLDOWN
+        elif is_good_beat(beat_timer):
+            grade = "Good"
+            self.shoot_cooldown = SHOOT_COOLDOWN
+        else:
+            grade = "Bad"
+            self.shoot_cooldown = BAD_SHOT_COOLDOWN
+            self.rhythm_meter -= 10   # the only place a Bad shot costs combo
+
+        self.idle_timer = 0
+        self.rhythm_meter = max(0, min(self.rhythm_meter, self.max_rhythm_meter))
+
+        damage_multiplier = 1 + (self.rhythm_meter / self.max_rhythm_meter) * (self.max_damage_multiplier - 1)
+        damage = GRADE_DAMAGE[grade] * damage_multiplier
+
+        spawn_bullet_pos = self.pos + self.gun_barrel_offset.rotate(self.angle)
+        bullet = Bullet(spawn_bullet_pos[0], spawn_bullet_pos[1], self.angle, damage, grade)
+        bullet_group.add(bullet)
+        all_sprites_group.add(bullet)
         
 
     def player_rotation(self):
@@ -237,22 +233,14 @@ class Bullet(pygame.sprite.Sprite):
             else:
                   particle_color = (255, 60, 60)  # Red
 
-            # Spawn 20 particles at the enemy's position
-            for i in range(20):
-                particles.append(
-                Particle(
-                enemy.rect.centerx,
-                enemy.rect.centery,
-                particle_color
-              )
-              )
+            if self.grade != "Bad":
+                for i in range(20):
+                    particles.append(Particle(enemy.rect.centerx, enemy.rect.centery, particle_color))
 
-            if self.grade == "Perfect": # Checks bullet grade and updates the player's rhythm meter accordingly
-                player.rhythm_meter += 20
+            if self.grade == "Perfect":
+                player.rhythm_meter += 8
             elif self.grade == "Good":
-                player.rhythm_meter += 10
-            else:
-                player.rhythm_meter -= 10  # Lose 10% for shooting off-beat
+                player.rhythm_meter += 4
 
             player.rhythm_meter = max(0, min(player.rhythm_meter, player.max_rhythm_meter))  # Clamp the combo bar between 0 and max
 
@@ -976,14 +964,8 @@ def main():
     # Load background
     background = pygame.image.load(BACKGROUND_PATH).convert()
 
-    # Stretch horizontally
-    background = pygame.transform.scale(
-        background,
-        (int(WIDTH * 1.15), HEIGHT)
-    )
-
-    # Center the stretched image
-    background_rect = background.get_rect(center=(WIDTH // 2, HEIGHT // 2))
+    background = pygame.transform.scale(background, (BG_W, HEIGHT))
+    background_rect = background.get_rect(topleft=(BG_LEFT, 0))
 
     # Load and start music
     pygame.mixer.music.load("assets/Miami Disco.mp3")
@@ -1012,7 +994,18 @@ def main():
                 pygame.quit()
                 exit()
 
+            if game_state == PLAYING:
+                if (event.type == pygame.MOUSEBUTTONDOWN and event.button == 1) or \
+                   (event.type == pygame.KEYDOWN and event.key == pygame.K_SPACE):
+                    player.fire(get_beat_timer())
+
             if event.type == pygame.KEYDOWN:
+
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit()
+                    exit()
+                if event.key == pygame.K_F11:
+                    pygame.display.toggle_fullscreen()
 
                 # Restart after death
                 if game_state == DEAD and event.key == pygame.K_r:
