@@ -28,9 +28,11 @@ class Player(pygame.sprite.Sprite):
         self.shoot_cooldown = 0
         self.gun_barrel_offset = pygame.math.Vector2(GUN_OFFSET_X, GUN_OFFSET_Y)
         self.health = PLAYER_HEALTH
+        self.damage_cooldown = 0
+        self.damage_delay = DAMAGE_DELAY  # 1 second
 
     #movement of the player
-    def update(self, beat_timer):
+    def update(self, dt, beat_timer):
         self.player_rotation()
         keys = pygame.key.get_pressed()
 
@@ -68,6 +70,8 @@ class Player(pygame.sprite.Sprite):
         self.player_rotation()
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= 1
+        if self.damage_cooldown > 0:
+            self.damage_cooldown -= dt
 
     def is_shooting(self, beat_timer): 
         if self.shoot_cooldown == 0 and self.shoot:
@@ -190,35 +194,45 @@ class Enemy(pygame.sprite.Sprite):
     def get_distance(self, vector1, vector2):
         return abs(vector1.distance_to(vector2))
 
-    def update(self): #enemy movement
-        if self.health <= 0:
-            self.kill()
-            return
-        self.get_his_ass() 
+    def player_collision(self):
+        if self.rect.colliderect(player.hitbox_rect):
+            if player.damage_cooldown <= 0:
+                player.health = max(0, player.health - ENEMY_DAMAGE)
+                player.damage_cooldown = player.damage_delay
+                self.kill()
 
+    def update(self, dt):
+        self.get_his_ass()
+        direction = pygame.Vector2(player.rect.center) - self.position
+        if direction.length() > 20:
+            self.position += direction.normalize() * self.speed
+        self.rect.center = self.position
+        self.player_collision()
+            
 class UI(): 
     def __init__(self, font): 
         self.font = font
-        self.current_health = player.health
-        self.maximum_health = 100
+        self.maximum_health = PLAYER_HEALTH
         self.health_bar_length = 100
-        self.health_ratio = self.maximum_health / self.health_bar_length 
         self.current_colour = None
 
-    def display_health_bar(self): 
-        pygame.draw.rect(screen, BLACK, (10, 15, self.health_bar_length * 3, 20)) # black
+    def display_health_bar(self):
+        current_health = player.health
+        pygame.draw.rect(screen, BLACK, (10, 15, self.health_bar_length * 3, 20))
 
-        if self.current_health >= 75:
-            pygame.draw.rect(screen, GREEN, (10, 15, self.current_health * 3, 20)) # green
+        if current_health >= 75:
             self.current_colour = GREEN
-        elif self.current_health >= 25:
-            pygame.draw.rect(screen, YELLOW, (10, 15, self.current_health * 3, 20)) # yellow
-            self.current_colour = YELLOW 
-        elif self.current_health >= 0:
-            pygame.draw.rect(screen, RED, (10, 15, self.current_health * 3, 20)) # red 
+        elif current_health >= 25:
+            self.current_colour = YELLOW
+        else:
             self.current_colour = RED
 
-        pygame.draw.rect(screen, WHITE, (10, 15, self.health_bar_length * 3, 20), 4) # white border
+        pygame.draw.rect(
+            screen,
+            self.current_colour,
+            (10, 15, current_health * 3, 20)
+        )
+        pygame.draw.rect(screen, WHITE, (10, 15, self.health_bar_length * 3, 20), 4)
 
     def display_health_text(self):
         health_surface = self.font.render(f"{player.health} / {self.maximum_health}", False, self.current_colour) 
@@ -251,28 +265,32 @@ def generate_floor(rows, cols):
         for _ in range(rows)
     ]
     return tiles
+def separate_enemies(enemies):
+    for i, enemy1 in enumerate(enemies):
+        for enemy2 in enemies[i + 1:]:
 
-def hitbox_collide(sprite1, sprite2):
-    return sprite1.base_zombie_rect.colliderect(sprite2.rect)
+            direction = enemy1.position - enemy2.position
+            distance = direction.length()
+
+            min_distance = MIN_ENEMY_DISTANCE  # Adjust to your enemy size
+
+            if distance < min_distance:
+                if distance == 0:
+                    direction = pygame.Vector2(1, 0)
+                else:
+                    direction = direction.normalize()
+
+                overlap = min_distance - distance
+
+                enemy1.position += direction * (overlap / 2)
+                enemy2.position -= direction * (overlap / 2)
+
+                enemy1.rect.center = enemy1.position
+                enemy2.rect.center = enemy2.position
 
 player = Player()
-enemy = Enemy((400, 400))
-
-def is_perfect_beat(beat_timer): #Checks if the player is shooting on the beat
-    distance_to_beat = min(
-        beat_timer,
-        BEAT_INTERVAL - beat_timer
-    )
-
-    return distance_to_beat <= PERFECT_WINDOW
-
-def is_good_beat(beat_timer): #Checks if the player is shooting on the beat
-    distance_to_beat = min(
-        beat_timer,
-        BEAT_INTERVAL - beat_timer
-    )
-
-    return distance_to_beat <= GOOD_WINDOW
+enemy = Enemy((0, 720))
+enemy2= Enemy((720, 0))
 
 def main():
     pygame.init()
@@ -317,8 +335,9 @@ def main():
         disco_floor(screen, tiles, ROWS, COLS, TILESIZE)
         screen.blit(player.image, player.rect)
 
-        player.update(change_timer)
-        enemy.update()
+        player.update(dt)
+        enemy_group.update(dt)
+        separate_enemies(enemy_group.sprites())
         ui.update()
 
         for bullet in bullet_group:
