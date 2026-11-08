@@ -6,7 +6,7 @@ WIN_TIME = 60000   # ms the player must survive
 
 #spawning
 START_MAX_ENEMIES = 3
-MAX_ENEMIES = 6
+MAX_ENEMIES = 4
 START_SPAWN_DELAY = 2500   # ms
 MIN_SPAWN_DELAY = 1000
 
@@ -18,7 +18,7 @@ ROWS = HEIGHT // TILESIZE # rows of disco floor
 #player settings
 PLAYER_START_X = WIDTH // 2
 PLAYER_START_Y = HEIGHT // 2
-PLAYER_SPEED = 5
+PLAYER_SPEED = 4.5
 SCALE_FACTOR = 0.35
 GUN_OFFSET_X = 45
 GUN_OFFSET_Y = 20
@@ -49,6 +49,9 @@ GRADE_DAMAGE = {"Perfect": 50, "Good": 25, "Bad": 0}
 BULLET_SCALE = 1.4
 BULLET_SPEED = 50
 BULLET_LIFETIME = 750
+
+#how long turtorial appears for
+TUTORIAL_TIME = 5000   # ms the tutorial text is shown
 
 # Beat settings
 BEAT_INTERVAL = 500

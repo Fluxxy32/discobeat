@@ -7,9 +7,17 @@ import random
 import os
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+pygame.mixer.pre_init(44100, -16, 2, 256)   # small buffer = less delay, which matters for a rhythm game
 pygame.init()
 flags = pygame.SCALED | pygame.FULLSCREEN
 screen = pygame.display.set_mode((WIDTH, HEIGHT), flags)
+
+GUNSHOT_SOUND = pygame.mixer.Sound("assets/gun-shots-fx-chip-shot.wav")
+GUNSHOT_SOUND.set_volume(0.4)
+
+PERFECT_SOUND = pygame.mixer.Sound("assets/rpg-sounds-select-sfx.wav")
+PERFECT_SOUND.set_volume(0.5)
 
 # Background image
 BACKGROUND_PATH = "assets/arabic set/arabic1.png"
@@ -180,6 +188,10 @@ class Player(pygame.sprite.Sprite):
         bullet = Bullet(spawn_bullet_pos[0], spawn_bullet_pos[1], self.angle, damage, grade)
         bullet_group.add(bullet)
         all_sprites_group.add(bullet)
+        GUNSHOT_SOUND.set_volume(0.2 if grade == "Bad" else 0.5)
+        GUNSHOT_SOUND.play()
+        if grade == "Perfect":
+            PERFECT_SOUND.play()
         
 
     def player_rotation(self):
@@ -680,6 +692,34 @@ def draw_beat_ring(screen, beat_timer):
     pygame.draw.circle(screen, color, center, target_r, width)         # fixed target
     pygame.draw.circle(screen, (255, 255, 255), center, int(ring_r), 2)  # shrinking ring
 
+def render_outlined(font, text, color, outline_color=(0, 0, 0), thickness=3):
+    base = font.render(text, True, color)
+    outline = font.render(text, True, outline_color)
+    w, h = base.get_size()
+    surf = pygame.Surface((w + thickness * 2, h + thickness * 2), pygame.SRCALPHA)
+
+    # Stamp the black copy around the edges, then the colored text on top
+    for dx in range(-thickness, thickness + 1):
+        for dy in range(-thickness, thickness + 1):
+            if dx * dx + dy * dy <= thickness * thickness:
+                surf.blit(outline, (thickness + dx, thickness + dy))
+    surf.blit(base, (thickness, thickness))
+    return surf
+
+def draw_tutorial(screen, font, survival_time, beat_timer):
+    if survival_time >= TUTORIAL_TIME:
+        return
+
+    # Blink in time with the beat: visible for the first 60% of each beat
+    if beat_timer > BEAT_INTERVAL * 0.6:
+        return
+
+    line1 = render_outlined(font, "SHOOT ON THE BEAT TO DO DAMAGE!", (255, 215, 0))
+    line2 = render_outlined(font, "CLICK WHEN THE RING HITS THE CIRCLE", WHITE)
+
+    screen.blit(line1, line1.get_rect(center=(WIDTH // 2, 170)))
+    screen.blit(line2, line2.get_rect(center=(WIDTH // 2, 215)))
+
 def disco_floor(screen, tiles, floor_rect):
 
     # Black background behind the tiles
@@ -954,6 +994,7 @@ def main():
 
     font = pygame.font.Font("assets/PublicPixel.ttf", 20)
     ui = UI(font)
+    tutorial_font = pygame.font.Font("assets/PublicPixel.ttf", 28)
 
     pulse = ScreenPulse()
     border_pulse = BorderPulse()
@@ -1118,6 +1159,9 @@ def main():
         # Draw UI last so it stays visible
         ui.update(survival_time)
         draw_beat_ring(screen, change_timer)
+
+        if game_state == PLAYING:
+            draw_tutorial(screen, tutorial_font, survival_time, change_timer)
 
         # Draw particles LAST so they appear above everything
         for particle in particles:
