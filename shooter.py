@@ -563,6 +563,39 @@ class BorderPulse:
 
         screen.blit(self.surface, (0, 0))
 
+class EnemySpawner:
+    def __init__(self):
+        self.max_enemies = 3
+        self.spawn_delay = 3000  # 3 seconds
+        self.spawn_timer = 0
+
+    def spawn_enemy(self):
+        side = random.choice(["top", "bottom", "left", "right"])
+
+        if side == "top":
+            position = (random.randint(0, WIDTH), -50)
+
+        elif side == "bottom":
+            position = (random.randint(0, WIDTH), HEIGHT + 50)
+
+        elif side == "left":
+            position = (-50, random.randint(0, HEIGHT))
+
+        else:
+            position = (WIDTH + 50, random.randint(0, HEIGHT))
+        Enemy(position)
+
+
+    def update(self, dt):
+        if len(enemy_group) < self.max_enemies:
+            self.spawn_timer += dt
+
+            if self.spawn_timer >= self.spawn_delay:
+                self.spawn_enemy()
+                self.spawn_timer = 0
+        else:
+            self.spawn_timer = 0
+
 def main_menu():
     pygame.mouse.set_visible(False)
     menu = True
@@ -603,9 +636,7 @@ def main():
     global player
 
     player = Player()
-    Enemy((0, 720))
-    Enemy((720, 0))
-
+    spawner = EnemySpawner()
     pygame.mixer.init()
 
     #Loads music and plays music
@@ -655,11 +686,12 @@ def main():
         screen.fill((10, 10, 10))
         disco_floor(screen, tiles, ROWS, COLS, TILESIZE)
         screen.blit(player.image, player.rect)
-
-        player.update(change_timer, dt)
-        enemy_group.update(dt)
         
-
+        player.update(change_timer, dt)
+        spawner.update(dt)
+        enemy_group.update(dt)
+        ui.update()
+        
         # Update screen pulse based on combo
         pulse.update(player.rhythm_meter, dt)
         # Update border pulse based on combo
