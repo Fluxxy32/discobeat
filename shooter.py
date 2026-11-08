@@ -9,6 +9,7 @@ screen = pygame.display.set_mode((WIDTH, HEIGHT))
 all_sprites_group = pygame.sprite.Group()
 bullet_group = pygame.sprite.Group()
 enemy_group = pygame.sprite.Group()
+obstacles_group = pygame.sprite.Group()
 
 class Player(pygame.sprite.Sprite):
     def __init__(self):
@@ -29,7 +30,7 @@ class Player(pygame.sprite.Sprite):
         self.health = PLAYER_HEALTH
 
     #movement of the player
-    def update(self):
+    def update(self, beat_timer):
         self.player_rotation()
         keys = pygame.key.get_pressed()
 
@@ -58,7 +59,7 @@ class Player(pygame.sprite.Sprite):
 
         if pygame.mouse.get_pressed() == (1, 0, 0) or keys[pygame.K_SPACE]:
             self.shoot = True
-            self.is_shooting()
+            self.is_shooting(beat_timer)
         else:
             self.shoot = False
 
@@ -68,11 +69,19 @@ class Player(pygame.sprite.Sprite):
         if self.shoot_cooldown > 0:
             self.shoot_cooldown -= 1
 
-    def is_shooting(self): 
+    def is_shooting(self, beat_timer): 
         if self.shoot_cooldown == 0 and self.shoot:
             self.shoot_cooldown = SHOOT_COOLDOWN
+
+            if is_perfect_beat(beat_timer):
+                damage = PERFECT_DAMAGE
+            elif is_good_beat(beat_timer):
+                damage = GOOD_DAMAGE
+            else:
+                damage = NORMAL_DAMAGE
+    
             spawn_bullet_pos = self.pos + self.gun_barrel_offset.rotate(self.angle)
-            self.bullet = Bullet(spawn_bullet_pos[0], spawn_bullet_pos[1], self.angle)
+            self.bullet = Bullet(spawn_bullet_pos[0], spawn_bullet_pos[1], self.angle, damage)
             bullet_group.add(self.bullet)
             all_sprites_group.add(self.bullet)
         
@@ -80,14 +89,14 @@ class Player(pygame.sprite.Sprite):
     def player_rotation(self):
         self.mouse_coords = pygame.mouse.get_pos()
         
-        self.x_change_mouse_player = (self.mouse_coords[0] - WIDTH // 2)
-        self.y_change_mouse_player = (self.mouse_coords[1] - HEIGHT // 2)
+        self.x_change_mouse_player = (self.mouse_coords[0] - self.hitbox_rect.centerx)
+        self.y_change_mouse_player = (self.mouse_coords[1] - self.hitbox_rect.centery)
         self.angle = math.degrees(math.atan2(self.y_change_mouse_player, self.x_change_mouse_player))
         self.image = pygame.transform.rotate(self.base_player_image, -self.angle)
         self.rect = self.image.get_rect(center = self.hitbox_rect.center)
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y, angle):
+    def __init__(self, x, y, angle, damage):
         super().__init__()
         self.image = pygame.image.load("assets/1.png").convert_alpha()
         self.image = pygame.transform.rotozoom(self.image, 0, BULLET_SCALE)
@@ -96,6 +105,7 @@ class Bullet(pygame.sprite.Sprite):
         self.x = x
         self.y = y
         self.angle = angle
+        self.damage = damage
         self.speed = BULLET_SPEED
         self.x_vel = math.cos(self.angle * (2*math.pi/360)) * self.speed
         self.y_vel = math.sin(self.angle * (2*math.pi/360)) * self.speed
@@ -111,6 +121,17 @@ class Bullet(pygame.sprite.Sprite):
 
         if pygame.time.get_ticks() - self.spawn_time > self.bullet_lifetime:
             self.kill() 
+
+    def bullet_collisions(self): 
+        hits = pygame.sprite.spritecollide(self, enemy_group, False) # Checks for collisions with enemies
+
+        if hits:
+            for enemy in hits:
+                enemy.health -= self.damage
+                self.kill()  # Destroy the bullet after hitting an enemy
+
+        if pygame.sprite.spritecollide(self, obstacles_group, False): # Check wall collisions
+            self.kill()
 
 class Particle:
     def __init__(self, x, y, vx, vy, radius):
@@ -144,6 +165,7 @@ class Enemy(pygame.sprite.Sprite):
         self.position = pygame.math.Vector2(position)
         self.rect = self.image.get_rect(center=position)
         self.rect.center = position
+        self.health = ENEMY_HEALTH
         
         #extremely advanced enemy AI
         self.direction = pygame.math.Vector2()
@@ -169,12 +191,15 @@ class Enemy(pygame.sprite.Sprite):
         return abs(vector1.distance_to(vector2))
 
     def update(self): #enemy movement
+        if self.health <= 0:
+            self.kill()
+            return
         self.get_his_ass() 
 
 class UI(): 
     def __init__(self, font): 
         self.font = font
-        self.current_health = 100
+        self.current_health = player.health
         self.maximum_health = 100
         self.health_bar_length = 100
         self.health_ratio = self.maximum_health / self.health_bar_length 
@@ -227,11 +252,34 @@ def generate_floor(rows, cols):
     ]
     return tiles
 
+def hitbox_collide(sprite1, sprite2):
+    return sprite1.base_zombie_rect.colliderect(sprite2.rect)
+
 player = Player()
 enemy = Enemy((400, 400))
 
+def is_perfect_beat(beat_timer): #Checks if the player is shooting on the beat
+    distance_to_beat = min(
+        beat_timer,
+        BEAT_INTERVAL - beat_timer
+    )
+
+    return distance_to_beat <= PERFECT_WINDOW
+
+def is_good_beat(beat_timer): #Checks if the player is shooting on the beat
+    distance_to_beat = min(
+        beat_timer,
+        BEAT_INTERVAL - beat_timer
+    )
+
+    return distance_to_beat <= GOOD_WINDOW
+
 def main():
     pygame.init()
+    pygame.mixer.init()
+    #Loads music and plays music
+    pygame.mixer.music.load(r"assets\Mitch Murder - Hollywood Heights (SPOTISAVER).mp3")
+    pygame.mixer.music.play(1, 0.0)
 
     font = pygame.font.Font("assets/PublicPixel.ttf", 20) 
     small_font = pygame.font.Font("assets/PublicPixel.ttf", 15)
@@ -245,6 +293,7 @@ def main():
     tiles = generate_floor(ROWS, COLS)
     change_timer = 0
 
+
     while True:
         #quitting the game
         for event in pygame.event.get():
@@ -256,8 +305,8 @@ def main():
         dt = clock.tick(FPS)
         change_timer += dt
 
-        if change_timer >= 400:
-            change_timer = 0
+        while change_timer >= BEAT_INTERVAL:
+            change_timer -= BEAT_INTERVAL
 
             for row in range(ROWS):
                 for col in range(COLS):
@@ -268,13 +317,13 @@ def main():
         disco_floor(screen, tiles, ROWS, COLS, TILESIZE)
         screen.blit(player.image, player.rect)
 
-        player.update()
+        player.update(change_timer)
         enemy.update()
         ui.update()
 
         for bullet in bullet_group:
             bullet.bullet_movement()
-            screen.blit(bullet.image, bullet.rect)
+            bullet.bullet_collisions() #Checks for collisions with enemies and walls
 
         pygame.draw.rect(screen, "red", player.hitbox_rect, width=2) #hitbox 1
         pygame.draw.rect(screen, "yellow", player.rect, width=2) #hitbox 2
