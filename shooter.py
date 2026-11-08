@@ -378,7 +378,6 @@ class Button:
     def update(self, screen):
         if self.image is not None:
             screen.blit(self.image, self.rect)
-
         screen.blit(self.text, self.text_rect)
 
     def checkForInput(self, position):
@@ -386,14 +385,9 @@ class Button:
 
     def changeColor(self, position):
         if self.rect.collidepoint(position):
-            self.text = self.font.render(
-                self.text_input, True, self.hovering_color
-            )
+            self.text = self.font.render(self.text_input, True, self.hovering_color)
         else:
-            self.text = self.font.render(
-                self.text_input, True, self.base_color
-            )
-
+            self.text = self.font.render(self.text_input, True, self.base_color)
 
 def get_rank_color(rank):
     rank_colors = {
@@ -468,29 +462,115 @@ def is_good_beat(beat_timer):
     distance_to_beat = min(beat_timer, BEAT_INTERVAL - beat_timer)
     return distance_to_beat <= GOOD_WINDOW
 
+def update_music_volume(combo):
+    min_volume = 0.2 # Minimum volume when combo is 0
+    max_volume = 1.0 # Maximum volume when combo is 100
+
+    volume = min_volume + (combo / 100) * (max_volume - min_volume)
+
+    pygame.mixer.music.set_volume(volume)
+
+class ScreenPulse:
+    def __init__(self):
+        self.phase = 0
+        self.alpha = 0
+
+        # Transparent overlay
+        self.overlay = pygame.Surface(
+            (WIDTH, HEIGHT),
+            pygame.SRCALPHA
+        )
+
+    def update(self, combo, dt):
+        # Keep combo between 0 and 100
+        combo = max(0, min(combo, 100))
+
+        # Increase pulse frequency as combo increases
+        min_frequency = 0.5
+        max_frequency = 2.0
+
+        frequency = min_frequency + (combo / 100) * (
+            max_frequency - min_frequency
+        )
+
+        # Update animation phase
+        self.phase += (2 * math.pi * frequency * dt) / 1000
+
+        # Calculate pulse intensity
+        intensity = (math.sin(self.phase) + 1) / 2
+
+        # Stronger pulse at higher combo
+        self.alpha = int(intensity * 100 * (combo / 100))
+
+    def draw(self, screen):
+        self.overlay.fill((140, 40, 200, self.alpha))
+        screen.blit(self.overlay, (0, 0))
+
+class BorderPulse:
+    def __init__(self):
+        self.phase = 0
+        self.surface = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+
+    def update(self, combo, dt):
+        combo = max(0, min(combo, 100))
+
+        # Pulse speed increases with combo
+        min_frequency = 0.5
+        max_frequency = 3.0
+
+        frequency = min_frequency + (combo / 100) * (
+            max_frequency - min_frequency
+        )
+
+        self.phase += (2 * math.pi * frequency * dt) / 1000
+
+        # Calculate brightness
+        intensity = (math.sin(self.phase) + 1) / 2
+
+        self.alpha = int(intensity * 200 * (combo / 100))
+
+    def draw(self, screen):
+        self.surface.fill((0, 0, 0, 0))
+
+        # Neon purple border
+        border_color = (180, 40, 255, self.alpha)
+
+        border_thickness = 25
+
+        # Top
+        pygame.draw.rect(
+            self.surface, border_color,
+            (0, 0, WIDTH, border_thickness)
+        )
+
+        # Bottom
+        pygame.draw.rect(
+            self.surface, border_color,
+            (0, HEIGHT - border_thickness, WIDTH, border_thickness)
+        )
+
+        # Left
+        pygame.draw.rect(
+            self.surface, border_color,
+            (0, 0, border_thickness, HEIGHT)
+        )
+
+        # Right
+        pygame.draw.rect(
+            self.surface, border_color,
+            (WIDTH - border_thickness, 0, border_thickness, HEIGHT)
+        )
+
+        screen.blit(self.surface, (0, 0))
+
 def main_menu():
     pygame.mouse.set_visible(False)
     menu = True
     title_font = pygame.font.Font("assets/PublicPixel.ttf", TITLE_FONT_SIZE)
     button_font = pygame.font.Font("assets/PublicPixel.ttf", BUTTON_FONT_SIZE)
     title = title_font.render("DISCOBEAT", True, WHITE)
-    play_button = Button(
-        None,
-        (WIDTH // 2, HEIGHT // 2 + 50),
-        "PLAY",
-        button_font,
-        WHITE,
-        YELLOW
-    )
-
-    quit_button = Button(
-        None,
-        (WIDTH - 40, 40),
-        "X",
-        button_font,
-        WHITE,
-        RED
-    )
+    play_button = Button(None, (WIDTH // 2, HEIGHT // 2 + 50), "PLAY", button_font, WHITE, YELLOW)
+    quit_button = Button(None, (WIDTH - 40, 40), "X", button_font, WHITE, RED)
 
     while menu:
         mouse_pos = pygame.mouse.get_pos()
@@ -509,13 +589,13 @@ def main_menu():
 
         play_button.changeColor(mouse_pos)
         play_button.update(screen)
-
         quit_button.changeColor(mouse_pos)
         quit_button.update(screen)
 
-        mouse_cursor = pygame.transform.rotozoom(pygame.image.load("assets/menu_assets/x1/icons/cursor.png"), 0, CURSOR_SCALE_FACTOR).convert_alpha()
-        cursor_rect = mouse_cursor.get_rect(topleft=mouse_pos)
-        screen.blit(mouse_cursor, cursor_rect)
+        mouse_cursor = pygame.transform.rotozoom(
+            pygame.image.load("assets/menu_assets/x1/icons/cursor.png"), 0, CURSOR_SCALE_FACTOR
+        ).convert_alpha()
+        screen.blit(mouse_cursor, mouse_cursor.get_rect(topleft=mouse_pos))
         pygame.display.flip()
     pygame.mouse.set_visible(True)
 
@@ -527,12 +607,16 @@ def main():
     Enemy((720, 0))
 
     pygame.mixer.init()
+
     #Loads music and plays music
     pygame.mixer.music.load("assets/Mitch Murder - Hollywood Heights (SPOTISAVER).mp3")
+    pygame.mixer.music.set_volume(0.2)
     pygame.mixer.music.play(1, 0.0)
 
     font = pygame.font.Font("assets/PublicPixel.ttf", 20) 
     ui = UI(font) 
+    pulse = ScreenPulse()
+    border_pulse = BorderPulse()
 
     pygame.display.set_caption("DISCOBEAT")
     clock = pygame.time.Clock()
@@ -558,6 +642,7 @@ def main():
 
         # Calculate dance floor speed based on combo meter
         floor_interval = get_floor_interval(player.rhythm_meter)
+        update_music_volume(player.rhythm_meter)  # Update music volume based on combo meter
         floor_timer += dt
         while floor_timer >= floor_interval:
             floor_timer -= floor_interval
@@ -573,7 +658,12 @@ def main():
 
         player.update(change_timer, dt)
         enemy_group.update(dt)
-        ui.update()
+        
+
+        # Update screen pulse based on combo
+        pulse.update(player.rhythm_meter, dt)
+        # Update border pulse based on combo
+        border_pulse.update(player.rhythm_meter, dt)
 
         for bullet in bullet_group:
             bullet.bullet_movement()
@@ -582,9 +672,15 @@ def main():
         pygame.draw.rect(screen, "red", player.hitbox_rect, width=2) #hitbox 1
         pygame.draw.rect(screen, "yellow", player.rect, width=2) #hitbox 2
         all_sprites_group.draw(screen)
-        
         for enemy in enemy_group:
             enemy.draw_health_bar()
+        # Draw screen pulse over the game world
+        pulse.draw(screen)
+        # Draw border pulse over the game world
+        border_pulse.draw(screen)
+
+        # Draw UI on top of the pulse
+        ui.update()
 
         pygame.display.flip()
 
