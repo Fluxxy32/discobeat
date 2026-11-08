@@ -29,8 +29,14 @@ class Player(pygame.sprite.Sprite):
         self.gun_barrel_offset = pygame.math.Vector2(GUN_OFFSET_X, GUN_OFFSET_Y)
         self.health = PLAYER_HEALTH
 
+        self.rhythm_meter = 0
+        self.max_rhythm_meter = 100 # Combo bar
+        self.idle_timer = 0
+        self.idle_delay = 2000  # 2 seconds of inactivity before combo bar decay
+        self.idle_decay_rate = 5  # Lose 5% per second when idle
+
     #movement of the player
-    def update(self, beat_timer):
+    def update(self, beat_timer, dt):
         self.player_rotation()
         keys = pygame.key.get_pressed()
 
@@ -63,6 +69,17 @@ class Player(pygame.sprite.Sprite):
         else:
             self.shoot = False
 
+
+        # Idle decay for rhythm meter
+        if not self.shoot:
+            self.idle_timer += dt
+            if self.idle_timer >= self.idle_delay:
+                decay_amount = (self.idle_decay_rate * dt) / 1000  # Convert to per second
+                self.rhythm_meter -= decay_amount
+                self.rhythm_meter = max(0, min(self.rhythm_meter, self.max_rhythm_meter))  # Ensure it doesn't go below 0
+        else:
+            self.idle_timer = 0  # Reset idle timer when shooting
+
         self.pos = pygame.math.Vector2(self.hitbox_rect.center)
 
         self.player_rotation()
@@ -75,13 +92,19 @@ class Player(pygame.sprite.Sprite):
 
             if is_perfect_beat(beat_timer):
                 damage = PERFECT_DAMAGE
+                grade = "Perfect"
             elif is_good_beat(beat_timer):
                 damage = GOOD_DAMAGE
+                grade = "Good"
             else:
                 damage = NORMAL_DAMAGE
+                grade = "Bad"
+                self.rhythm_meter -= 10  # Lose 10% for shooting off-beat
+
+            self.rhythm_meter = max(0, min(self.rhythm_meter, self.max_rhythm_meter))  # Clamp the combo bar between 0 and max
     
             spawn_bullet_pos = self.pos + self.gun_barrel_offset.rotate(self.angle)
-            self.bullet = Bullet(spawn_bullet_pos[0], spawn_bullet_pos[1], self.angle, damage)
+            self.bullet = Bullet(spawn_bullet_pos[0], spawn_bullet_pos[1], self.angle, damage, grade)
             bullet_group.add(self.bullet)
             all_sprites_group.add(self.bullet)
         
@@ -96,7 +119,7 @@ class Player(pygame.sprite.Sprite):
         self.rect = self.image.get_rect(center = self.hitbox_rect.center)
 
 class Bullet(pygame.sprite.Sprite):
-    def __init__(self, x, y, angle, damage):
+    def __init__(self, x, y, angle, damage, grade):
         super().__init__()
         self.image = pygame.image.load("assets/1.png").convert_alpha()
         self.image = pygame.transform.rotozoom(self.image, 0, BULLET_SCALE)
@@ -111,6 +134,7 @@ class Bullet(pygame.sprite.Sprite):
         self.y_vel = math.sin(self.angle * (2*math.pi/360)) * self.speed
         self.bullet_lifetime = BULLET_LIFETIME
         self.spawn_time = pygame.time.get_ticks() # gets the specific time that the bullet was created
+        self.grade = grade  # Store the grade of the bullet (Perfect, Good, Bad)
 
     def bullet_movement(self):  
         self.x += self.x_vel
@@ -126,9 +150,19 @@ class Bullet(pygame.sprite.Sprite):
         hits = pygame.sprite.spritecollide(self, enemy_group, False) # Checks for collisions with enemies
 
         if hits:
-            for enemy in hits:
-                enemy.health -= self.damage
-                self.kill()  # Destroy the bullet after hitting an enemy
+            enemy = hits[0]  # Affect the first enemy hit
+            enemy.health -= self.damage
+
+            if self.grade == "Perfect": # Checks bullet grade and updates the player's rhythm meter accordingly
+                player.rhythm_meter += 20
+            elif self.grade == "Good":
+                player.rhythm_meter += 10
+            else:
+                player.rhythm_meter -= 10  # Lose 10% for shooting off-beat
+
+            player.rhythm_meter = max(0, min(player.rhythm_meter, player.max_rhythm_meter))  # Clamp the combo bar between 0 and max   
+                
+            self.kill()  # Destroy the bullet after hitting an enemy
 
         if pygame.sprite.spritecollide(self, obstacles_group, False): # Check wall collisions
             self.kill()
@@ -229,9 +263,32 @@ class UI():
         text_1 = self.font.render(f"Enemies spawning in {int(time/1000)} seconds!",True, RED)
         screen.blit(text_1, (400, 100))
 
+    def display_combo_bar(self):
+        bar_width = 200
+        bar_height = 20
+        bar_x = WIDTH - bar_width - 10
+        bar_y = 10
+
+        # Draw the background of the combo bar
+        pygame.draw.rect(screen, BLACK, (bar_x, bar_y, bar_width, bar_height))
+
+        # Calculate the width of the filled portion based on the rhythm meter
+        filled_width = (player.rhythm_meter / player.max_rhythm_meter) * bar_width
+
+        # Draw the filled portion of the combo bar
+        pygame.draw.rect(screen, BLUE, (bar_x, bar_y, filled_width, bar_height))
+
+        # Draw the border of the combo bar
+        pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_width, bar_height), 2)
+
+        meter_text = self.font.render(f"Combo: {player.rhythm_meter}%", True, WHITE)
+
+        screen.blit(meter_text, (bar_x, bar_y + 25))
+
     def update(self): 
         self.display_health_bar()
         self.display_health_text()
+        self.display_combo_bar()
 
 def disco_floor(screen, tiles, rows, cols, tile_size):
     for row in range(rows):
@@ -317,7 +374,7 @@ def main():
         disco_floor(screen, tiles, ROWS, COLS, TILESIZE)
         screen.blit(player.image, player.rect)
 
-        player.update(change_timer)
+        player.update(change_timer, dt)
         enemy.update()
         ui.update()
 
