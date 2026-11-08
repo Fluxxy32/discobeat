@@ -270,6 +270,36 @@ class UI():
         self.display_health_bar()
         self.display_health_text()
 
+class Button():
+	def __init__(self, image, pos, text_input, font, base_color, hovering_color):
+		self.image = image
+		self.x_pos = pos[0]
+		self.y_pos = pos[1]
+		self.font = font
+		self.base_color, self.hovering_color = base_color, hovering_color
+		self.text_input = text_input
+		self.text = self.font.render(self.text_input, True, self.base_color)
+		if self.image is None:
+			self.image = self.text
+		self.rect = self.image.get_rect(center=(self.x_pos, self.y_pos))
+		self.text_rect = self.text.get_rect(center=(self.x_pos, self.y_pos))
+
+	def update(self, screen):
+		if self.image is not None:
+			screen.blit(self.image, self.rect)
+		screen.blit(self.text, self.text_rect)
+
+	def checkForInput(self, position):
+		if position[0] in range(self.rect.left, self.rect.right) and position[1] in range(self.rect.top, self.rect.bottom):
+			return True
+		return False
+
+	def changeColor(self, position):
+		if position[0] in range(self.rect.left, self.rect.right) and position[1] in range(self.rect.top, self.rect.bottom):
+			self.text = self.font.render(self.text_input, True, self.hovering_color)
+		else:
+			self.text = self.font.render(self.text_input, True, self.base_color)
+
 def disco_floor(screen, tiles, rows, cols, tile_size):
     for row in range(rows):
         for col in range(cols):
@@ -319,6 +349,57 @@ def is_good_beat(beat_timer):
     distance_to_beat = min(beat_timer, BEAT_INTERVAL - beat_timer)
     return distance_to_beat <= GOOD_WINDOW
 
+def main_menu():
+    pygame.mouse.set_visible(False)
+    menu = True
+    title_font = pygame.font.Font("assets/PublicPixel.ttf", TITLE_FONT_SIZE)
+    button_font = pygame.font.Font("assets/PublicPixel.ttf", BUTTON_FONT_SIZE)
+    title = title_font.render("DISCOBEAT", True, WHITE)
+    play_button = Button(
+        None,
+        (WIDTH // 2, HEIGHT // 2 + 50),
+        "PLAY",
+        button_font,
+        WHITE,
+        YELLOW
+    )
+
+    quit_button = Button(
+        None,
+        (WIDTH - 40, 40),
+        "X",
+        button_font,
+        WHITE,
+        RED
+    )
+
+    while menu:
+        mouse_pos = pygame.mouse.get_pos()
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if play_button.checkForInput(mouse_pos):
+                    menu = False
+                if quit_button.checkForInput(mouse_pos):
+                    pygame.quit()
+                    exit()
+        screen.fill((65, 10, 30))
+        screen.blit(title, title.get_rect(center=(WIDTH // 2, HEIGHT // 3)))
+
+        play_button.changeColor(mouse_pos)
+        play_button.update(screen)
+
+        quit_button.changeColor(mouse_pos)
+        quit_button.update(screen)
+
+        mouse_cursor = pygame.transform.rotozoom(pygame.image.load("assets/menu_assets/x1/icons/cursor.png"), 0, CURSOR_SCALE_FACTOR).convert_alpha()
+        cursor_rect = mouse_cursor.get_rect(topleft=mouse_pos)
+        screen.blit(mouse_cursor, cursor_rect)
+        pygame.display.flip()
+    pygame.mouse.set_visible(True)
+
 player = Player()
 enemy = Enemy((0, 720))
 enemy2= Enemy((720, 0))
@@ -331,9 +412,6 @@ def main():
     pygame.mixer.music.play(1, 0.0)
 
     font = pygame.font.Font("assets/PublicPixel.ttf", 20) 
-    small_font = pygame.font.Font("assets/PublicPixel.ttf", 15)
-    title_font = pygame.font.Font("assets/PublicPixel.ttf", 60)
-    score_font = pygame.font.Font("assets/PublicPixel.ttf", 50)
     ui = UI(font) 
 
     pygame.display.set_caption("DISCOBEAT")
@@ -381,8 +459,11 @@ def main():
         
         for enemy in enemy_group:
             enemy.draw_health_bar()
-            
+
         pygame.display.flip()
 
 if __name__ == "__main__":
-  main()
+    pygame.init()
+
+    main_menu()
+    main()
