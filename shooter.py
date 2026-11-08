@@ -4,6 +4,8 @@ from sys import exit
 import math
 from settings import *
 import random
+
+pygame.init()
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 
 all_sprites_group = pygame.sprite.Group()
@@ -37,6 +39,8 @@ class Player(pygame.sprite.Sprite):
 
         self.base_damage = NORMAL_DAMAGE
         self.max_damage_multiplier = 3.0
+        self.damage_cooldown = 0
+        self.damage_delay = DAMAGE_DELAY
 
     #movement of the player
     def update(self, beat_timer, dt):
@@ -151,6 +155,7 @@ class Bullet(pygame.sprite.Sprite):
 
     def bullet_collisions(self): 
         hits = pygame.sprite.spritecollide(self, enemy_group, False) # Checks for collisions with enemies
+
         if hits:
             enemy = hits[0]  # Affect the first enemy hit
             enemy.health -= self.damage
@@ -162,8 +167,8 @@ class Bullet(pygame.sprite.Sprite):
             else:
                 player.rhythm_meter -= 10  # Lose 10% for shooting off-beat
 
-            player.rhythm_meter = max(0, min(player.rhythm_meter, player.max_rhythm_meter))  # Clamp the combo bar between 0 and max   
-                
+            player.rhythm_meter = max(0, min(player.rhythm_meter, player.max_rhythm_meter))  # Clamp the combo bar between 0 and max
+
             self.kill()  # Destroy the bullet after hitting an enemy
 
         if pygame.sprite.spritecollide(self, obstacles_group, False): # Check wall collisions
@@ -254,15 +259,14 @@ class Enemy(pygame.sprite.Sprite):
         )
 
     def update(self, dt):
+        if self.health <= 0:
+            self.kill()
+            return
         self.get_his_ass()
-        direction = pygame.Vector2(player.rect.center) - self.position
-        if direction.length() > 20:
-            self.position += direction.normalize() * self.speed
-        self.rect.center = self.position
         self.player_collision()
             
-class UI(): 
-    def __init__(self, font): 
+class UI:
+    def __init__(self, font):
         self.font = font
         self.maximum_health = PLAYER_HEALTH
         self.health_bar_length = 100
@@ -284,15 +288,27 @@ class UI():
             self.current_colour,
             (10, 15, current_health * 3, 20)
         )
-        pygame.draw.rect(screen, WHITE, (10, 15, self.health_bar_length * 3, 20), 4)
+
+        pygame.draw.rect(
+            screen, WHITE,
+            (10, 15, self.health_bar_length * 3, 20), 4
+        )
 
     def display_health_text(self):
-        health_surface = self.font.render(f"{player.health} / {self.maximum_health}", False, self.current_colour) 
-        health_rect = health_surface.get_rect(center = (410, 25))
+        health_surface = self.font.render(
+            f"{player.health} / {self.maximum_health}",
+            False,
+            self.current_colour
+        )
+        health_rect = health_surface.get_rect(center=(410, 25))
         screen.blit(health_surface, health_rect)
 
     def display_countdown(self, time):
-        text_1 = self.font.render(f"Enemies spawning in {int(time/1000)} seconds!",True, RED)
+        text_1 = self.font.render(
+            f"Enemies spawning in {int(time / 1000)} seconds!",
+            True,
+            RED
+        )
         screen.blit(text_1, (400, 100))
 
     def display_combo_bar(self):
@@ -301,44 +317,82 @@ class UI():
         bar_x = WIDTH - bar_width - 10
         bar_y = 10
 
-        # Draw the background of the combo bar
         pygame.draw.rect(screen, BLACK, (bar_x, bar_y, bar_width, bar_height))
 
-        # Calculate the width of the filled portion based on the rhythm meter
         filled_width = (player.rhythm_meter / player.max_rhythm_meter) * bar_width
 
-        # Draw the filled portion of the combo bar
-        pygame.draw.rect(screen, BLUE, (bar_x, bar_y, filled_width, bar_height))
+        pygame.draw.rect(
+            screen, BLUE,
+            (bar_x, bar_y, filled_width, bar_height)
+        )
 
-        # Draw the border of the combo bar
-        pygame.draw.rect(screen, WHITE, (bar_x, bar_y, bar_width, bar_height), 2)
+        pygame.draw.rect(
+            screen, WHITE,
+            (bar_x, bar_y, bar_width, bar_height), 2
+        )
 
-        meter_text = self.font.render(f"Combo: {player.rhythm_meter}%", True, WHITE)
-
+        meter_text = self.font.render(
+            f"Combo: {player.rhythm_meter}%",
+            True,
+            WHITE
+        )
         screen.blit(meter_text, (bar_x, bar_y + 25))
 
     def display_rank(self):
-     rank = get_rank(player.rhythm_meter)
-     rank_color = get_rank_color(rank)
+        rank = get_rank(player.rhythm_meter)
+        rank_color = get_rank_color(rank)
 
-     rank_text = self.font.render(
-     f"RANK: {rank}",
-     True,
-     rank_color
-     )
+        rank_text = self.font.render(
+            f"RANK: {rank}",
+            True,
+            rank_color
+        )
 
-     rank_rect = rank_text.get_rect(
-     center=(WIDTH - 110, 85)
-     )
+        rank_rect = rank_text.get_rect(center=(WIDTH - 110, 85))
+        screen.blit(rank_text, rank_rect)
 
-     screen.blit(rank_text, rank_rect)
-
-    def update(self): 
+    def update(self):
         self.display_health_bar()
         self.display_health_text()
         self.display_combo_bar()
         self.display_rank()
 
+class Button:
+    def __init__(self, image, pos, text_input, font, base_color, hovering_color):
+        self.image = image
+        self.x_pos = pos[0]
+        self.y_pos = pos[1]
+        self.font = font
+        self.base_color = base_color
+        self.hovering_color = hovering_color
+        self.text_input = text_input
+
+        self.text = self.font.render(self.text_input, True, self.base_color)
+
+        if self.image is None:
+            self.image = self.text
+
+        self.rect = self.image.get_rect(center=(self.x_pos, self.y_pos))
+        self.text_rect = self.text.get_rect(center=(self.x_pos, self.y_pos))
+
+    def update(self, screen):
+        if self.image is not None:
+            screen.blit(self.image, self.rect)
+
+        screen.blit(self.text, self.text_rect)
+
+    def checkForInput(self, position):
+        return self.rect.collidepoint(position)
+
+    def changeColor(self, position):
+        if self.rect.collidepoint(position):
+            self.text = self.font.render(
+                self.text_input, True, self.hovering_color
+            )
+        else:
+            self.text = self.font.render(
+                self.text_input, True, self.base_color
+            )
 
 
 def get_rank_color(rank):
@@ -401,9 +455,6 @@ def get_rank(combo):
 
 def hitbox_collide(sprite1, sprite2):
     return sprite1.base_zombie_rect.colliderect(sprite2.rect)
-
-player = Player()
-enemy = Enemy((400, 400))
 
 def is_perfect_beat(beat_timer): #Checks if the player is shooting on the beat
     distance_to_beat = min(
@@ -468,12 +519,13 @@ def main_menu():
         pygame.display.flip()
     pygame.mouse.set_visible(True)
 
-player = Player()
-enemy = Enemy((0, 720))
-enemy2= Enemy((720, 0))
-
 def main():
-    pygame.init()
+    global player
+
+    player = Player()
+    Enemy((0, 720))
+    Enemy((720, 0))
+
     pygame.mixer.init()
     #Loads music and plays music
     pygame.mixer.music.load("assets/Mitch Murder - Hollywood Heights (SPOTISAVER).mp3")
@@ -520,7 +572,7 @@ def main():
         screen.blit(player.image, player.rect)
 
         player.update(change_timer, dt)
-        enemy.update()
+        enemy_group.update(dt)
         ui.update()
 
         for bullet in bullet_group:
