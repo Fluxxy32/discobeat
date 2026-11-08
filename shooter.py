@@ -976,7 +976,7 @@ def main():
     # Load background
     background = pygame.image.load(BACKGROUND_PATH).convert()
 
-# Stretch horizontally
+    # Stretch horizontally
     background = pygame.transform.scale(
         background,
         (int(WIDTH * 1.15), HEIGHT)
@@ -986,9 +986,7 @@ def main():
     background_rect = background.get_rect(center=(WIDTH // 2, HEIGHT // 2))
 
     # Load and start music
-    pygame.mixer.music.load(
-        "assets/Miami Disco.mp3"
-    )
+    pygame.mixer.music.load("assets/Miami Disco.mp3")
     pygame.mixer.music.set_volume(0.2)
     pygame.mixer.music.play()
 
@@ -1074,7 +1072,7 @@ def main():
 
             while floor_timer >= floor_interval:
                 floor_timer -= floor_interval
-                    
+
                 for row in range(FLOOR_ROWS):
                     for col in range(FLOOR_COLS):
                         tiles[row][col] = random.choice(colors)
@@ -1092,10 +1090,10 @@ def main():
                 bullet.bullet_movement()
                 bullet.bullet_collisions()
 
-            for particle in particles[:]:  # Iterate over a copy of the list to avoid issues when removing particles
-              particle.update(dt)
-              if particle.life <= 0 or particle.radius <= 0:
-                 particles.remove(particle)
+            for particle in particles[:]:
+                particle.update(dt)
+                if particle.life <= 0 or particle.radius <= 0:
+                    particles.remove(particle)
 
             # Update visual effects
             pulse.update(player.rhythm_meter, dt)
@@ -1113,12 +1111,12 @@ def main():
         #pygame.draw.rect(screen, "red", player.hitbox_rect, width=2) #hitbox 1
         #pygame.draw.rect(screen, "yellow", player.rect, width=2) #hitbox 2
         #for w in WALL_RECTS: #debug for wall hitboxes
-            #pygame.draw.rect(screen, "cyan", w, width=2)/
+            #pygame.draw.rect(screen, "cyan", w, width=2)
         all_sprites_group.draw(screen)
-
 
         for enemy in enemy_group:
             enemy.draw_health_bar()
+
         # Draw screen pulse over the game world
         pulse.draw(screen)
         # Draw border pulse over the game world
@@ -1133,10 +1131,9 @@ def main():
             particle.draw(screen)
 
         if game_state == DEAD:
-             draw_death_screen()
-
+            draw_death_screen()
         elif game_state == WON:
-             draw_win_screen()
+            draw_win_screen()
 
         pygame.display.flip()
 
@@ -1154,6 +1151,16 @@ def draw_death_screen():
 
 
 def draw_win_screen():
+    screen.fill((5, 4, 15))
+
+    title_font = pygame.font.Font("assets/PublicPixel.ttf", 110)
+    prompt_font = pygame.font.Font("assets/PublicPixel.ttf", 40)
+
+    title = title_font.render("YOU WIN", True, (180, 100, 255))
+    prompt = prompt_font.render("PRESS ESC TO QUIT", True, (190, 180, 210))
+
+    screen.blit(title, title.get_rect(center=(WIDTH // 2, HEIGHT // 2 - 60)))
+    screen.blit(prompt, prompt.get_rect(center=(WIDTH // 2, HEIGHT // 2 + 45)))
     screen.fill((5, 4, 15))
 
     title_font = pygame.font.Font("assets/PublicPixel.ttf", 110)
