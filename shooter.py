@@ -120,19 +120,22 @@ class Bullet(pygame.sprite.Sprite):
         self.x += self.x_vel
         self.y += self.y_vel
 
-        self.rect.x = int(self.x)
-        self.rect.y = int(self.y)
+        self.rect.center = (int(self.x), int(self.y))
 
         if pygame.time.get_ticks() - self.spawn_time > self.bullet_lifetime:
             self.kill() 
 
     def bullet_collisions(self): 
         hits = pygame.sprite.spritecollide(self, enemy_group, False) # Checks for collisions with enemies
-
         if hits:
             for enemy in hits:
                 enemy.health -= self.damage
-                self.kill()  # Destroy the bullet after hitting an enemy
+
+                if enemy.health <= 0:
+                    enemy.kill()
+
+                self.kill()
+                break
 
         if pygame.sprite.spritecollide(self, obstacles_group, False): # Check wall collisions
             self.kill()
@@ -200,6 +203,26 @@ class Enemy(pygame.sprite.Sprite):
                 player.health = max(0, player.health - ENEMY_DAMAGE)
                 player.damage_cooldown = player.damage_delay
                 self.kill()
+
+    def draw_health_bar(self):
+        bar_width = 50
+        bar_height = 6
+        # Calculate health percentage
+        health_ratio = max(0, self.health / ENEMY_HEALTH)
+        bar_x = self.rect.centerx - bar_width // 2
+        bar_y = self.rect.top - 12
+        pygame.draw.rect(screen, BLACK, (bar_x, bar_y, bar_width, bar_height))
+        pygame.draw.rect(
+            screen,
+            GREEN,
+            (bar_x, bar_y, bar_width * health_ratio, bar_height)
+        )
+        pygame.draw.rect(
+            screen,
+            WHITE,
+            (bar_x, bar_y, bar_width, bar_height),
+            1
+        )
 
     def update(self, dt):
         self.get_his_ass()
@@ -287,6 +310,14 @@ def separate_enemies(enemies):
 
                 enemy1.rect.center = enemy1.position
                 enemy2.rect.center = enemy2.position
+                
+def is_perfect_beat(beat_timer):
+    distance_to_beat = min(beat_timer, BEAT_INTERVAL - beat_timer)
+    return distance_to_beat <= PERFECT_WINDOW
+
+def is_good_beat(beat_timer):
+    distance_to_beat = min(beat_timer, BEAT_INTERVAL - beat_timer)
+    return distance_to_beat <= GOOD_WINDOW
 
 player = Player()
 enemy = Enemy((0, 720))
@@ -296,7 +327,7 @@ def main():
     pygame.init()
     pygame.mixer.init()
     #Loads music and plays music
-    pygame.mixer.music.load(r"assets\Mitch Murder - Hollywood Heights (SPOTISAVER).mp3")
+    pygame.mixer.music.load("assets/Mitch Murder - Hollywood Heights (SPOTISAVER).mp3")
     pygame.mixer.music.play(1, 0.0)
 
     font = pygame.font.Font("assets/PublicPixel.ttf", 20) 
@@ -335,7 +366,7 @@ def main():
         disco_floor(screen, tiles, ROWS, COLS, TILESIZE)
         screen.blit(player.image, player.rect)
 
-        player.update(dt)
+        player.update(dt, change_timer)
         enemy_group.update(dt)
         separate_enemies(enemy_group.sprites())
         ui.update()
@@ -347,6 +378,10 @@ def main():
         pygame.draw.rect(screen, "red", player.hitbox_rect, width=2) #hitbox 1
         pygame.draw.rect(screen, "yellow", player.rect, width=2) #hitbox 2
         all_sprites_group.draw(screen)
+        
+        for enemy in enemy_group:
+            enemy.draw_health_bar()
+            
         pygame.display.flip()
 
 if __name__ == "__main__":
