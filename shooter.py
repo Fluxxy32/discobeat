@@ -287,10 +287,40 @@ class UI():
 
         screen.blit(meter_text, (bar_x, bar_y + 25))
 
+    def display_rank(self):
+     rank = get_rank(player.rhythm_meter)
+     rank_color = get_rank_color(rank)
+
+     rank_text = self.font.render(
+     f"RANK: {rank}",
+     True,
+     rank_color
+     )
+
+     rank_rect = rank_text.get_rect(
+     center=(WIDTH - 110, 85)
+     )
+
+     screen.blit(rank_text, rank_rect)
+
     def update(self): 
         self.display_health_bar()
         self.display_health_text()
         self.display_combo_bar()
+        self.display_rank()
+
+
+
+def get_rank_color(rank):
+    rank_colors = {
+    "SSS": (255, 215, 0),    # Gold
+    "S":   (255, 50, 50),    # Red
+    "A":   (180, 80, 255),   # Purple
+    "B":   (50, 150, 255),   # Blue
+    "C":   (50, 220, 100),   # Green
+    "D":   (180, 180, 180)   # Gray
+    }
+    return rank_colors[rank]
 
 def disco_floor(screen, tiles, rows, cols, tile_size):
     for row in range(rows):
@@ -324,6 +354,20 @@ def get_floor_interval(combo):
         return 2000
     else:
         return 2400
+
+def get_rank(combo):
+    if combo >= 100:
+        return "SSS"
+    elif combo >= 80:
+        return "S"
+    elif combo >= 60:
+        return "A"
+    elif combo >= 40:
+        return "B"
+    elif combo >= 20:
+        return "C"
+    else:
+        return "D"
 
 def hitbox_collide(sprite1, sprite2):
     return sprite1.base_zombie_rect.colliderect(sprite2.rect)
